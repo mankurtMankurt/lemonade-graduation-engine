@@ -1208,11 +1208,7 @@ function setChips(chips) {
     const b = document.createElement('button');
     b.className = `chip ${ch.primary ? 'primary' : ''}`;
     b.textContent = ch.label;
-    b.addEventListener('click', () => {
-      // disable all chips
-      wrap.querySelectorAll('.chip').forEach(c => c.disabled = true);
-      ch.onClick();
-    });
+    b.addEventListener('click', () => ch.onClick());
     wrap.appendChild(b);
   });
 }
