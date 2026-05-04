@@ -1817,8 +1817,19 @@ function licenseSearchHTML() {
 
 function bindLicenseSearch() {
   const opts = document.querySelectorAll('#licOptList .lic-opt');
-  opts.forEach(o => o.addEventListener('click', () => {
+  opts.forEach(o => o.addEventListener('click', async () => {
     state.licenseStatus = o.dataset.val;
+    if (o.dataset.val === 'Not valid') {
+      appendUser('Not valid');
+      clearChips();
+      await wait(600);
+      await mayaSay([
+        "Ah, got it. Unfortunately we need a valid driver's license to offer car coverage.",
+        "If that changes, come back and we'd love to help! 🍋",
+      ]);
+      setChips([{ label: "Restart demo", onClick: restartDemo }]);
+      return;
+    }
     const widgetEl = document.querySelector('.w-license').closest('.widget');
     widgetEl.innerHTML = licWizardHTML(0);
     bindLicWizard(0);
@@ -1860,22 +1871,18 @@ function licWizardHTML(stepIdx) {
   const s = LIC_STEPS[stepIdx];
   const progress = ((stepIdx + 1) / LIC_STEPS.length) * 100;
   const isSelect = s.type === 'select';
-  const optRows = isSelect
+  const inputBlock = isSelect
     ? `<div class="wiz-opts" id="wizOptList">${s.options.map(o => `<div class="wiz-opt" data-val="${o}">${o}</div>`).join('')}</div>`
-    : '';
-  const clearBtn = !isSelect ? `<span class="wiz-clear" id="wizClear">×</span>` : '';
-  const searchIcon = `<span class="wiz-search-icon">🔍</span>`;
-  const inputClass = isSelect ? 'wiz-input' : 'wiz-input';
+    : `<div class="wiz-input-wrap">
+        <span class="wiz-search-icon">🔍</span>
+        <input class="wiz-input" id="wizInput" placeholder="${s.placeholder}" autocomplete="off"
+          value="${state[s.stateKey] || ''}">
+        <span class="wiz-clear" id="wizClear">×</span>
+      </div>`;
   return `
     <div class="w-lic-wizard" id="licWizard">
       <div class="wiz-title">${s.title}</div>
-      <div class="wiz-input-wrap">
-        ${searchIcon}
-        <input class="${inputClass}" id="wizInput" placeholder="${s.placeholder}" autocomplete="off"
-          ${isSelect ? 'readonly' : ''} value="${state[s.stateKey] || ''}">
-        ${clearBtn}
-      </div>
-      ${optRows}
+      ${inputBlock}
       <div class="wiz-progress"><div class="wiz-progress-fill" style="width:${progress}%"></div></div>
       <div class="wiz-footer">
         ${stepIdx > 0 ? `<button class="wiz-back" id="wizBack">Back</button>` : '<span></span>'}
@@ -1904,14 +1911,8 @@ function bindLicWizard(stepIdx) {
 
   if (s.type === 'select') {
     const opts = document.querySelectorAll('#wizOptList .wiz-opt');
-    const searchIcon = document.querySelector('#licWizard .wiz-search-icon');
-    input.addEventListener('input', () => {
-      const q = input.value.toLowerCase();
-      opts.forEach(o => o.classList.toggle('hidden', !o.textContent.toLowerCase().includes(q)));
-    });
     opts.forEach(o => o.addEventListener('click', async () => {
       state[s.stateKey] = o.dataset.val;
-      input.value = o.dataset.val;
       await wait(120);
       advanceLicWizard(stepIdx, wizard);
     }));
@@ -2266,6 +2267,13 @@ async function step_bundleReveal() {
   ]);
   spawnConfetti(420);
   appendWidget(bundlePlansHTML());
+  requestAnimationFrame(() => {
+    const wrap = document.querySelector('.w-bundle-options');
+    const best = wrap?.querySelector('.best-plan');
+    if (wrap && best) {
+      wrap.scrollLeft = best.offsetLeft - (wrap.offsetWidth - best.offsetWidth) / 2;
+    }
+  });
   await wait(280);
   appendWidget(plusCardHTML());
   await wait(220);

@@ -1,59 +1,225 @@
-# Car Flow — chat-based rating questions
+# Car Flow — Lemonade Graduation Engine
 
-This document covers the car-quote rating questions added to the Lemonade Graduation Engine prototype (`index.html` / `prototype.html`). It complements the original [README](README.md) and is kept in sync with the actual code on this branch.
+Complete walkthrough of the chat-based car-quote flow in `index.html` (and its mirror `prototype.html`). Covers every screen, step, widget, and branch from lock screen to home dashboard.
 
-## Why this exists
+---
 
-The original Graduation Engine prototype short-circuited the car-quote flow: scan plate → coverage card → bundle. That works for the demo's pitch ("we already know everything about you from your renters policy") but it skips the rating questions a real car carrier needs to price a policy.
-
-We compared the prototype against Lemonade's production car flow (see screenshots in `/Users/danielodes/Desktop/car flow/`) and identified the questions a personal-details-only profile is missing. The ones below are now wired into the chat between car detection and the coverage card.
-
-## What's in the chat now
-
-The user starts on the lock screen, taps the push notification, and goes through Maya's chat. The shape of each message is the same as the rest of the prototype: a Maya bubble, then either chips or an inline widget for the answer. Everything below appears between **car detection** and the **coverage card**.
+## End-to-end flow
 
 ```
-Maya: "Got it 🚗" → 2021 Honda Civic LX card
-Maya: "A few quick questions and we're done."  [Sounds good]
-  ↓
-1. Annual mileage                  [slider widget, 12,000 mi/yr default]
-2. Business use                    [No / Yes]   — rideshare, delivery, visiting customers
-3. Safety / anti-theft features    [multi-select: garage, alarm, GPS, dashcam, ADAS]
-4. Current insurance status        [Yes / No / lapsed / Never had it]
-5. Provider + duration             [Geico ▼ / 3+ years ▼]   (only if "Yes" above)
-6. Prior accidents (5 yrs)         [None / 1 / 2+]
-7. Traffic tickets (5 yrs)         [None / 1–2 / 3+]
-  ↓
-Maya: "Locked in 🔒" → coverage card → "Looks good" → bundle reveal (existing)
+Lock screen
+  Push notification: "New address, new wheels? 🚗"
+  → tap → Maya chat opens
+  
+startConversation
+  Maya: Hey James 👋 (3 messages)
+  Widget: Savings card (up to $312/yr, bundle perks)
+  Chips: [Yes, let's see 🍋]  [Maybe later]
+  
+  ── "Maybe later" branch ────────────────────────────────
+  step_maybeLater
+    Maya: "offer holds 30 days"
+    Chips: [Actually, show me]  [Restart demo]
+    → "Actually, show me" → step_letsGo
+  ────────────────────────────────────────────────────────
+
+step_letsGo
+  Maya: "Three quick steps, ~60 seconds."
+  Widget: Steps card (1 Confirm details · 2 Choose coverage · 3 Bundle & save)
+  Chips: [Let's go]
+
+step_confirmDetails
+  Maya: "Pulled these from your renters policy."
+  Widget: Details card (address · DOB · marital status · license)
+  Chips: [All correct ✓]  [Edit something] (toast only — not wired)
+
+step_selectCars
+  Maya: "These are the cars I found at your address. Which would you like to insure?"
+  Widget: Car-select list with toggles + "Add car" (toast only)
+  Chips: [Next →]
+
+step_carFromList
+  User answer: selected car name(s)
+  Maya: "Got it 🚗"
+  Widget: Detected-car card (name · "Registered at 47 Elm St, Westchester NY")
+  Maya: "A few quick questions and we're done."
+  Chips: [Sounds good]
+
+── Rating questions ────────────────────────────────────────────────────────
+
+step_milesQ
+  Maya: "About how many miles do you drive a year?"
+  Widget: Miles slider (2,000–30,000, step 500, default 12,000)
+  Chips: [Looks right]
+
+step_primaryUseQ
+  User answer: ~{miles} mi/yr
+  Maya: "Do you ever use it for business — rideshare, deliveries, visiting customers?"
+       "(Regular commuting doesn't count.)"
+  Chips: [No]  [Yes]
+  → sets state.businessUse
+
+step_safetyQ
+  User answer: No / Yes
+  Maya: "Got any of these? Each one bumps your discount."
+  Widget: Safety checklist (multi-select)
+         🏠 Parked in a garage
+         🔒 Factory alarm / immobilizer
+         📍 GPS tracker (LoJack, OnStar…)
+         📷 Dashcam
+         🚗 Lane-keep / auto-brake
+  Chips: [Continue]
+  → sets state.safetyFeatures
+
+step_hasInsuranceQ
+  User answer: Continue
+  Maya: "Do you have car insurance right now?"
+  Chips: [Yes]  [No / lapsed]  [Never had it]
+  → sets state.hasInsurance
+
+  ── "Yes" branch ────────────────────────────────────────
+  step_currentInsurerQ
+    Maya: "Who's your provider, and how long?"
+    Widget: Insurer widget
+            Provider dropdown (Geico · State Farm · Progressive · Allstate · USAA · Liberty Mutual · Other)
+            Duration dropdown (< 6 mo · 6–12 mo · 1–3 yrs · 3+ yrs)
+    Chips: [Continue]
+    → step_priorAccidentsQ
+  ────────────────────────────────────────────────────────
+  ── "No / lapsed" or "Never had it" → skip to step_priorAccidentsQ
+
+step_priorAccidentsQ
+  Maya: "Any accidents in the last 5 years? (At-fault or not.)"
+  Chips: [None 🙏]  [1]  [2+]
+  → sets state.priorAccidents (0 / 1 / 2)
+
+step_violationsQ
+  Maya: "Traffic tickets in the last 5 years?"
+       "(Parking tickets don't count.)"
+  Chips: [None]  [1–2]  [3+]
+  → sets state.violations (0 / 1 / 3)
+
+── Coverage & bundle ───────────────────────────────────────────────────────
+
+step_showCoverage
+  Maya: "Locked in 🔒"
+       "Here are smart defaults for your profile. Toggle anything — price updates live."
+  Widget: Coverage card
+          🛡️ Liability 100/300/100 — always on, disabled toggle
+          💥 Collision ($500 deductible) — toggle
+          🌧️ Comprehensive ($500 deductible) — toggle
+          🛣️ Pay-per-mile — toggle (shows range price $89–$132/mo)
+          Price strip: live estimated monthly price
+  Chips: [Looks good]
+
+step_bundleReveal
+  Maya: "Now the fun part 🎉" + "Here's what bundling does to the price:"
+  Confetti burst
+  Widget: Compare card — "Car only · standalone" vs "Renters + Car bundle · BEST"
+          (count-up animation on bundle price)
+  Widget: Plus card — trees offset · AI Jim claims · roadside · Giveback charity
+  Chips: [Bundle & save 🍋]  [What's Giveback?]
+
+  ── "What's Giveback?" branch ────────────────────────────────
+  step_givebackExplain
+    Maya: explains flat-fee model, $2.3M donated, B-Corp
+    Chips: [Bundle & save 🍋]
+  ─────────────────────────────────────────────────────────────
+
+step_bind
+  Maya: (no pre-message)
+  Widget: Bind card — 3-row animated checklist
+          ✓ Verified your details (700 ms)
+          ✓ Calculated your premium (700 ms)
+          ✓ Activating coverage (700 ms)
+  Maya: "You're bundled! 💛"
+  Widget: Bound summary card (renters + car prices, total bundle, coverage start)
+  Confetti burst
+  Widget: Trees pill (count = miles / 2000, e.g. 12k mi → 6 trees)
+  Maya: "~{N} trees on the way… One last thing — pick a Giveback charity?"
+  Widget: Charity card (radio select)
+          📚 Malala Fund
+          🌳 One Tree Planted
+          🐾 ASPCA
+  Chips: [View my policies]  [Restart demo]
+
+step_goHome → renderHome
+  Home screen: pink hero "Hi James 👋 · Your Lemonade"
+  Tabs: Policies · Claims · Giveback · Settings
+  Policy cards: 🚗 Car (active, bundled) · 🏠 Renters (active)
 ```
 
-State written by these steps is on the `state` object: `state.miles`, `state.businessUse`, `state.safetyFeatures`, `state.hasInsurance`, `state.priorAccidents`, `state.violations`. The rest of the existing flow (coverage toggles, bundle reveal, bind, home dashboard) is unchanged.
+---
 
-## Where the code lives
+## State written during the flow
 
-Everything is in `index.html` (and the identical mirror `prototype.html`).
+| Field | Set by | Values |
+|---|---|---|
+| `state.selectedCarName` | `step_carFromList` | car name string |
+| `state.miles` | miles slider | 2000–30000, default 12000 |
+| `state.businessUse` | `step_primaryUseQ` | bool |
+| `state.safetyFeatures` | safety checklist | array of feature ids |
+| `state.hasInsurance` | `step_hasInsuranceQ` | bool |
+| `state.priorAccidents` | `step_priorAccidentsQ` | 0 / 1 / 2 |
+| `state.violations` | `step_violationsQ` | 0 / 1 / 3 |
+| `state.coverage` | coverage toggles | `{ collision, comprehensive, ppm }` bools |
+| `state.charity` | charity card | `'malala'` / `'trees'` / `'aspca'` |
 
-- **Step functions** — `step_milesQ`, `step_primaryUseQ`, `step_safetyQ`, `step_hasInsuranceQ`, `step_currentInsurerQ`, `step_priorAccidentsQ`, `step_violationsQ`. Each one follows the existing pattern: `appendUser(prevAnswer)` → `clearChips()` → `mayaSay([...])` → `appendWidget(...)` (optional) → `setChips([...])`.
-- **Widgets** — `milesSliderHTML`, `safetyChecksHTML`, `insurerSelectHTML`. Wrapped in the same `.widget` container as the existing prototype widgets.
-- **CSS** — three new widget blocks: `.w-miles`, `.w-checks`, `.w-insurer`. They live in the main `<style>` block right above the existing `.w-coverage` rules and reuse the same design tokens (`--pink`, `--ink`, `--border`, etc.).
-- **Multi-select handler** — added to the global delegated click handler at the bottom of the script. It toggles `.on` on `[data-check]` rows and updates `state.safetyFeatures`.
+---
+
+## Pricing
+
+```js
+PRICE = { base: 89, collision: 22, comprehensive: 14, standalone: 127, rentersAlone: 14 }
+carPrice() = base + (collision if on) + (comprehensive if on)
+```
+
+Bundle price shown on compare card = `carPrice()`. Standalone = `$127/mo`. Savings = difference × 12/yr.
+
+---
+
+## Widgets reference
+
+| Function | Description |
+|---|---|
+| `savingsCardHTML()` | Bundle savings teaser (up to $312/yr, 3 perks) |
+| `stepsCardHTML()` | 3-step "Quick. Promise." preview card |
+| `detailsCardHTML()` | Personal details pulled from renters policy |
+| `carsWidgetHTML()` | Registered car list with toggles |
+| `detectedCarFromListHTML(car)` | Single confirmed car card (from list) |
+| `milesSliderHTML()` | Annual miles range input with live pill |
+| `safetyChecksHTML()` | 5-row multi-select safety/anti-theft list |
+| `insurerSelectHTML()` | Provider + duration dropdowns |
+| `coverageCardHTML()` | Coverage toggles + live price strip |
+| `compareCardHTML()` | Standalone vs bundle price comparison |
+| `plusCardHTML()` | Lemonade perks list |
+| `bindCardHTML()` | 3-row animated bind checklist |
+| `boundSummaryHTML()` | Post-bind policy summary with total |
+| `treesPillHTML()` | Trees-offset pill (miles / 2000) |
+| `charityCardHTML()` | Giveback charity radio picker |
+
+---
+
+## What's intentionally not asked
+
+These are either pre-filled from the renters policy or excluded to keep the chat tight:
+
+- **Address, DOB, marital status, license** — shown in `step_confirmDetails` as pre-filled from renters
+- **VIN** — auto-identified from the registered-cars list (plate scan path exists as `step_carDetected` / `detectedCarHTML` but is not in the primary flow)
+- **Driver list** — single-driver prototype only
+- **SR-22** — removed (rare; was `step_sr22Q`, can be re-added between violations and showCoverage)
+- **Good-student discount** — removed (driver-specific; was `step_studentQ`)
+
+---
 
 ## Conditional branches
 
-- **No prior insurance** — picking "No / lapsed" or "Never had it" on step 4 skips the provider/duration step (5) and goes straight to accidents (6). The `hasInsurance` field on `state` is set to `false`.
+- **Insurance status → No / lapsed / Never had it**: skips `step_currentInsurerQ` entirely, goes straight to `step_priorAccidentsQ`
+- **Maybe later**: dead-end branch with a "holds 30 days" message and an escape hatch back to `step_letsGo`
+- **What's Giveback?**: informational detour before `step_bind`, does not affect state
 
-There are no other branches. We removed the SR-22 and good-student-discount questions to keep the chat tight; if they need to come back, they were `step_sr22Q` and `step_studentQ` and chained between violations and `step_showCoverage`.
-
-## What's intentionally NOT asked
-
-These either belong to the "personal details we already have" assumption or were judged too friction-heavy for the chat:
-
-- Address, DOB, marital status, license info — pre-filled from renters in `step_confirmDetails`.
-- VIN — auto-detected from plate scan in `step_carDetected`.
-- Driver list — only the policyholder; the prototype is single-driver.
-- SR-22 — removed (very rare; can be re-added if needed).
-- Good-student discount — removed (driver-specific; prototype is single adult).
+---
 
 ## Updating this doc
 
-If you add or remove a question, update the **flow diagram** in *What's in the chat now* and the **step list** in *Where the code lives* in the same commit. The rest of the doc is structural and rarely needs touching.
+When adding or removing a step: update the flow diagram, the state table (if applicable), and the widgets table in the same commit.
