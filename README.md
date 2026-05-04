@@ -22,6 +22,7 @@ Open `index.html` in any modern browser. No build step, no server. Single self-c
 - `illust-*.png` — additional Lemonade brand illustrations (not currently rendered)
 - `build-brief.md` — the build spec
 - `lemonade-design-system.md` — design-system reference (colors, typography, components)
+- `CAR_FLOW.md` — car-quote rating questions added to the chat (kept in sync with code)
 
 ## Stack
 
